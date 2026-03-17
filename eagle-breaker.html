@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Eagle-Breaker 🦅</title>
@@ -115,11 +116,36 @@ function gameOver() {
     alert("Game Over ! Niveau " + level);
 }
 
-function handleRevive() {
-    alert("Connexion Wallet bientôt active...");
-    payBtn.style.display = "none";
-    y = canvas.height - 30; dy = -3;
-    draw();
+async function handleRevive() {
+    try {
+        const provider = window.solana || window.phantom?.solana;
+        if (!provider) {
+            alert("Installe Phantom ou Solflare !");
+            return;
+        }
+
+        const resp = await provider.connect();
+        const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("mainnet-beta"));
+        
+        const transaction = new solanaWeb3.Transaction().add(
+            solanaWeb3.SystemProgram.transfer({
+                fromPubkey: resp.publicKey,
+                toPubkey: new solanaWeb3.PublicKey("GU5dNvMQKoUiVJvZ5HUgrv3CxtrR5ujxfHK2HPT6Z6bV"),
+                lamports: 0.005 * solanaWeb3.LAMPORTS_PER_SOL,
+            })
+        );
+
+        // Frais de priorité manuel à 0.001 SOL
+        const signature = await provider.signAndSendTransaction(transaction);
+        await connection.confirmTransaction(signature);
+
+        alert("Paiement réussi !");
+        payBtn.style.display = "none";
+        y = canvas.height - 30; dy = -3;
+        draw();
+    } catch (err) {
+        alert("Erreur ou transaction annulée.");
+    }
 }
 
 initBricks();
