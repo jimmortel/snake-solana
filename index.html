@@ -2,122 +2,110 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Snake Solana - Nostalgie</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eagle Arcade 🦅</title>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        canvas { border: 4px solid #3b82f6; background: #000; touch-action: none; }
-        body { background: #0f172a; color: white; overflow: hidden; }
+        body { background: #0b0b0b; color: white; font-family: 'Arial', sans-serif; text-align: center; margin: 0; padding: 20px; }
+        .header { margin: 40px 0; }
+        .streak-box { background: #1a1a1a; border: 2px solid #ff9800; border-radius: 20px; padding: 20px; display: inline-block; min-width: 250px; box-shadow: 0 0 15px rgba(255,152,0,0.2); }
+        .streak-fire { font-size: 3em; margin-bottom: 10px; }
+        #streakText { font-size: 1.4em; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; max-width: 450px; margin: 30px auto; }
+        .game-card { background: #1e1e1e; border-radius: 15px; padding: 20px; text-decoration: none; color: white; border: 2px solid #333; transition: 0.3s; }
+        .game-card:active { transform: scale(0.95); border-color: #00ffa3; }
+        .btn-freeze { background: #ff4444; color: white; border: none; padding: 12px 20px; border-radius: 10px; cursor: pointer; margin-top: 15px; display: none; font-weight: bold; width: 100%; }
+        h1 { color: #00ffa3; letter-spacing: 3px; font-size: 2em; }
+        .footer { margin-top: 50px; font-size: 0.8em; color: #666; }
     </style>
 </head>
-<body class="flex flex-col items-center p-4">
-    <h1 class="text-2xl font-black text-blue-400 mb-2">SNAKE SOLANA</h1>
-    
-    <div id="status" class="text-xs mb-4 text-blue-300 font-mono text-center">Connecte ton wallet pour jouer</div>
-    <button id="connectBtn" class="bg-blue-600 px-6 py-2 rounded-full font-bold mb-4 shadow-lg shadow-blue-900">Connecter Phantom</button>
+<body>
 
-    <canvas id="gameCanvas" width="300" height="300" class="rounded-lg"></canvas>
-
-    <div id="scoreDisplay" class="mt-4 text-xl font-bold">Score: 0</div>
-
-    <div id="gameOverArea" class="hidden fixed inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center">
-        <h2 class="text-4xl font-black text-red-500 mb-2">GAME OVER</h2>
-        <p id="finalScore" class="text-xl mb-6 font-bold"></p>
-        
-        <button id="reviveBtn" class="bg-green-500 w-full py-4 rounded-xl font-black text-lg mb-4 shadow-lg shadow-green-900">
-            CONTINUER (0.005 SOL)
-        </button>
-        
-        <button id="shareBtn" class="bg-purple-600 w-full py-3 rounded-xl font-bold mb-4">
-            PARTAGER SUR FARCASTER
-        </button>
-
-        <button onclick="location.reload()" class="text-gray-400 underline">Recommencer à zéro</button>
+    <div class="header">
+        <h1>EAGLE ARCADE 🦅</h1>
+        <div class="streak-box">
+            <div class="streak-fire" id="streakIcon">🔥</div>
+            <div id="streakText">Initialisation...</div>
+            <button id="freezeBtn" class="btn-freeze" onclick="buyFreeze()">SAUVER MON STREAK (0.005 SOL)</button>
+        </div>
     </div>
 
+    <div class="grid">
+        <a href="snake.html" class="game-card">
+            <div style="font-size: 2.5em;">🐍</div>
+            <p>Snake Retro</p>
+        </a>
+        <a href="eagle-breaker.html" class="game-card">
+            <div style="font-size: 2.5em;">🧱</div>
+            <p>Eagle Breaker</p>
+        </a>
+        <div class="game-card" style="opacity: 0.4;">
+            <div style="font-size: 2.5em;">🚀</div>
+            <p>Bientôt...</p>
+        </div>
+        <div class="game-card" style="opacity: 0.4;">
+            <div style="font-size: 2.5em;">🃏</div>
+            <p>Bientôt...</p>
+        </div>
+    </div>
+
+    <div class="footer">Fait avec passion par l'Eagle-Boss 🦅</div>
+
     <script>
-        const DEST_WALLET = "GU5dNvMQKoUiVJvZ5HUgrv3CxtrR5ujxfHK2HPT6Z6bV";
-        const REVIVE_COST = 0.005;
-        const PRIORITY_FEE = 0.001; // Tes réglages personnels
+        const DESTINATION_WALLET = "GU5dNTo6v2x5oCHZ6jY8RscGZt6xN8NExyMhWwP6bV";
+        
+        function checkStreak() {
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+            const lastVisitStr = localStorage.getItem('eagleLastVisit');
+            let streak = parseInt(localStorage.getItem('eagleStreak')) || 0;
 
-        let walletAddress = null;
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        let snake = [{x: 10, y: 10}];
-        let food = {x: 15, y: 15};
-        let dx = 0, dy = 0, score = 0, gameInterval;
+            if (lastVisitStr) {
+                const lastVisit = parseInt(lastVisitStr);
+                const diffDays = (today - lastVisit) / (1000 * 60 * 60 * 24);
 
-        // Connexion Wallet
-        document.getElementById('connectBtn').onclick = async () => {
-            if (window.solana) {
-                try {
-                    const resp = await window.solana.connect();
-                    walletAddress = resp.publicKey.toString();
-                    document.getElementById('status').innerText = "Wallet: " + walletAddress.slice(0,6) + "...";
-                    document.getElementById('connectBtn').classList.add('hidden');
-                    startGame();
-                } catch (e) { alert("Erreur de connexion"); }
-            } else { alert("Utilise le navigateur de Phantom !"); }
-        };
-
-        // Paiement Revive
-        document.getElementById('reviveBtn').onclick = async () => {
-            const connection = new solanaWeb3.Connection("https://api.mainnet-beta.solana.com");
-            const transaction = new solanaWeb3.Transaction().add(
-                solanaWeb3.SystemProgram.transfer({
-                    fromPubkey: window.solana.publicKey,
-                    toPubkey: new solanaWeb3.PublicKey(DEST_WALLET),
-                    lamports: (REVIVE_COST + PRIORITY_FEE) * solanaWeb3.LAMPORTS_PER_SOL,
-                })
-            );
-            try {
-                const { signature } = await window.solana.signAndSendTransaction(transaction);
-                document.getElementById('status').innerText = "Vérification...";
-                await connection.confirmTransaction(signature);
-                document.getElementById('gameOverArea').classList.add('hidden');
-                dx = 0; dy = 0; // On reprend
-            } catch (err) { alert("Transaction annulée"); }
-        };
-
-        // Partage Farcaster
-        document.getElementById('shareBtn').onclick = () => {
-            const text = encodeURIComponent(`Je viens de faire ${score} au Snake Solana ! 🐍 Qui peut me battre ?`);
-            window.open(`https://warpcast.com/~/compose?text=${text}`);
-        };
-
-        // Commandes tactiles (Swipe)
-        let touchStartX = 0, touchStartY = 0;
-        canvas.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; });
-        canvas.addEventListener('touchend', e => {
-            const diffX = e.changedTouches[0].clientX - touchStartX;
-            const diffY = e.changedTouches[0].clientY - touchStartY;
-            if (Math.abs(diffX) > Math.abs(diffY)) {
-                if (diffX > 0 && dx === 0) { dx = 1; dy = 0; } else if (dx === 0) { dx = -1; dy = 0; }
-            } else {
-                if (diffY > 0 && dy === 0) { dx = 0; dy = 1; } else if (dy === 0) { dx = 0; dy = -1; }
-            }
-        });
-
-        function startGame() {
-            gameInterval = setInterval(() => {
-                const head = {x: snake[0].x + dx, y: snake[0].y + dy};
-                if (dx === 0 && dy === 0) return;
-                snake.unshift(head);
-                if (head.x === food.x && head.y === food.y) {
-                    score += 10;
-                    document.getElementById('scoreDisplay').innerText = "Score: " + score;
-                    food = {x: Math.floor(Math.random()*30), y: Math.floor(Math.random()*30)};
-                } else { snake.pop(); }
-                if (head.x<0 || head.x>=30 || head.y<0 || head.y>=30) {
-                    document.getElementById('gameOverArea').classList.remove('hidden');
-                    document.getElementById('finalScore').innerText = "Ton score: " + score;
+                if (diffDays === 1) {
+                    streak++; // Hier il est venu, aujourd'hui aussi = +1
+                } else if (diffDays > 1) {
+                    // Trop tard ! Streak gris car perdu
+                    document.getElementById('freezeBtn').style.display = 'block';
+                    document.getElementById('streakIcon').style.filter = 'grayscale(100%)';
                 }
-                ctx.fillStyle = "#000"; ctx.fillRect(0,0,300,300);
-                ctx.fillStyle = "#22c55e"; snake.forEach(p => ctx.fillRect(p.x*10, p.y*10, 9, 9));
-                ctx.fillStyle = "#ef4444"; ctx.fillRect(food.x*10, food.y*10, 9, 9);
-            }, 150);
+            } else {
+                streak = 1; // Première visite
+            }
+
+            localStorage.setItem('eagleStreak', streak);
+            localStorage.setItem('eagleLastVisit', today);
+            document.getElementById('streakText').innerText = `SÉRIE : ${streak} JOURS`;
         }
+
+        async function buyFreeze() {
+            if (!window.solana) return alert("Connecte ton wallet !");
+            try {
+                const resp = await window.solana.connect();
+                const connection = new solanaWeb3.Connection("https://api.mainnet-beta.solana.com");
+                
+                const transaction = new solanaWeb3.Transaction().add(
+                    solanaWeb3.SystemProgram.transfer({
+                        fromPubkey: resp.publicKey,
+                        toPubkey: new solanaWeb3.PublicKey(DESTINATION_WALLET),
+                        lamports: 0.005 * solanaWeb3.LAMPORTS_PER_SOL,
+                    })
+                );
+
+                // Réglage Priorité 0.001 SOL
+                const priorityFee = solanaWeb3.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000000 });
+                transaction.add(priorityFee);
+
+                const { signature } = await window.solana.signAndSendTransaction(transaction);
+                alert("Streak Sauvé ! 🔥");
+                localStorage.setItem('eagleStreak', (parseInt(localStorage.getItem('eagleStreak')) || 0) + 1);
+                location.reload();
+            } catch (err) { alert("Erreur ou transaction annulée."); }
+        }
+
+        checkStreak();
     </script>
 </body>
 </html>
