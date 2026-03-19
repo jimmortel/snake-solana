@@ -1,1 +1,320 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Eagle Invaders | Cyber-Nid 🦅</title>
+    <style>
+        :root {
+            --bg-color: #0d0d1a; /* Bleu très sombre */
+            --player-color: #00ffcc; /* Cyan néon */
+            --invader-color: #ff00ff; /* Magenta néon */
+            --bullet-color: #ffff00; /* Jaune vif */
+            --font-main: 'Arial', sans-serif;
+        }
 
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: #fff;
+            font-family: var(--font-main);
+            overflow: hidden; /* Empêche le scroll */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            border: 2px solid var(--player-color);
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
+        }
+
+        #score-board {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.2em;
+            color: var(--player-color);
+            text-shadow: 0 0 5px var(--player-color);
+        }
+
+        #controls-info {
+            position: absolute;
+            bottom: 20px;
+            font-size: 0.8em;
+            color: rgba(255, 255, 255, 0.5);
+            text-align: center;
+        }
+
+        #game-over {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: rgba(13, 13, 26, 0.9);
+            padding: 30px;
+            border: 2px solid var(--invader-color);
+            box-shadow: 0 0 20px rgba(255, 0, 255, 0.5);
+        }
+
+        #game-over h1 { color: var(--invader-color); margin-top: 0; }
+        #restart-btn {
+            background: var(--player-color);
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 1em;
+            border-radius: 5px;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="score-board">SCORE: <span id="score">0</span></div>
+        <div id="controls-info">Appuyez sur 'Espace' pour tirer. Utilisez les flèches (ou le tactile) pour bouger.</div>
+        
+        <div id="game-over">
+            <h1>PERDU !</h1>
+            <p>Ton score : <span id="final-score">0</span></p>
+            <button id="restart-btn">RECOMMENCER</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const gameOverScreen = document.getElementById('game-over');
+        const finalScoreElement = document.getElementById('final-score');
+        const restartBtn = document.getElementById('restart-btn');
+
+        // Configuration pour Mobile/Desktop
+        let width = Math.min(window.innerWidth * 0.95, 600); // Max width 600px
+        let height = Math.min(window.innerHeight * 0.8, 800); // Max height 800px
+        canvas.width = width;
+        canvas.height = height;
+
+        // --- Variables du Jeu ---
+        let player, invaders, bullets, score, gameIsOver, invaderDirection, invaderSpeed;
+        const playerWidth = 30;
+        const playerHeight = 20;
+        const invaderWidth = 25;
+        const invaderHeight = 20;
+        const bulletSpeed = 6;
+        let keys = {};
+
+        // --- Initialisation / Reset ---
+        function init() {
+            gameIsOver = false;
+            score = 0;
+            scoreElement.innerText = score;
+            gameOverScreen.style.display = 'none';
+            invaders = [];
+            bullets = [];
+            invaderDirection = 1; // 1 = Droite, -1 = Gauche
+            invaderSpeed = 0.5; // Vitesse initiale
+
+            // Joueur
+            player = {
+                x: (canvas.width - playerWidth) / 2,
+                y: canvas.height - playerHeight - 10,
+                width: playerWidth,
+                height: playerHeight,
+                speed: 4,
+                color: '#00ffcc'
+            };
+
+            // Envahisseurs (Grille 5x8)
+            const rows = 5;
+            const cols = 8;
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    invaders.push({
+                        x: 50 + c * (invaderWidth + 15),
+                        y: 50 + r * (invaderHeight + 15),
+                        width: invaderWidth,
+                        height: invaderHeight,
+                        color: '#ff00ff'
+                    });
+                }
+            }
+        }
+
+        // --- Fonctions de Dessin ---
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
+
+        function drawInvaders() {
+            invaders.forEach(inv => {
+                ctx.fillStyle = inv.color;
+                ctx.fillRect(inv.x, inv.y, inv.width, inv.height);
+            });
+        }
+
+        function drawBullets() {
+            ctx.fillStyle = '#ffff00'; // Jaune vif
+            bullets.forEach(b => {
+                ctx.fillRect(b.x, b.y, b.width, b.height);
+            });
+        }
+
+        // --- Logique du Jeu ---
+        function movePlayer() {
+            if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
+            if (keys['ArrowRight'] && player.x < canvas.width - player.width) player.x += player.speed;
+        }
+
+        function moveInvaders() {
+            let changeDirection = false;
+            invaders.forEach(inv => {
+                inv.x += invaderSpeed * invaderDirection;
+                // Vérifie si un invader touche le bord
+                if (inv.x + inv.width > canvas.width || inv.x < 0) changeDirection = true;
+            });
+
+            if (changeDirection) {
+                invaderDirection *= -1; // Change de sens
+                invaders.forEach(inv => { inv.y += 20; }); // Descend d'un cran
+                invaderSpeed += 0.05; // Augmente la vitesse !
+            }
+
+            // Vérifie si un invader a atteint le joueur
+            invaders.forEach(inv => {
+                if (inv.y + inv.height >= player.y) {
+                    gameIsOver = true;
+                }
+            });
+        }
+
+        function moveBullets() {
+            bullets.forEach((b, index) => {
+                b.y -= bulletSpeed;
+                // Supprime si hors de l'écran
+                if (b.y < 0) bullets.splice(index, 1);
+            });
+        }
+
+        function checkCollisions() {
+            bullets.forEach((b, bIndex) => {
+                invaders.forEach((inv, invIndex) => {
+                    if (
+                        b.x < inv.x + inv.width &&
+                        b.x + b.width > inv.x &&
+                        b.y < inv.y + inv.height &&
+                        b.y + b.height > inv.y
+                    ) {
+                        // Collision !
+                        invaders.splice(invIndex, 1); // Supprime l'invader
+                        bullets.splice(bIndex, 1); // Supprime la balle
+                        score += 10;
+                        scoreElement.innerText = score;
+
+                        // Vérifie si tous les invaders sont éliminés
+                        if (invaders.length === 0) {
+                            // On pourrait faire un niveau suivant ici, mais pour faire simple :
+                            gameIsOver = true;
+                            gameOverScreen.querySelector('h1').innerText = "VICTOIRE !";
+                            gameOverScreen.querySelector('h1').style.color = player.color;
+                        }
+                    }
+                });
+            });
+        }
+
+        function fireBullet() {
+            bullets.push({
+                x: player.x + player.width / 2 - 2,
+                y: player.y - 10,
+                width: 4,
+                height: 10
+            });
+        }
+
+        // --- Boucle de Jeu ---
+        function gameLoop() {
+            if (gameIsOver) {
+                finalScoreElement.innerText = score;
+                gameOverScreen.style.display = 'block';
+                return;
+            }
+
+            // Clear canvas
+            ctx.fillStyle = '#0d0d1a'; // Bleu très sombre
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Update & Draw
+            movePlayer();
+            moveInvaders();
+            moveBullets();
+            checkCollisions();
+
+            drawPlayer();
+            drawInvaders();
+            drawBullets();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- Événements (Clavier) ---
+        window.addEventListener('keydown', e => {
+            keys[e.key] = true;
+            if (e.key === ' ' || e.key === 'ArrowUp') {
+                if (!gameIsOver) fireBullet();
+            }
+        });
+        window.addEventListener('keyup', e => {
+            keys[e.key] = false;
+        });
+
+        // --- Événements (Tactile Mobile) ---
+        canvas.addEventListener('touchstart', e => {
+            if (gameIsOver) return;
+            const touchX = e.touches[0].clientX;
+            const canvasRect = canvas.getBoundingClientRect();
+            const relativeX = touchX - canvasRect.left;
+
+            if (relativeX < canvas.width / 2) {
+                keys['ArrowLeft'] = true; // Clic à gauche = bouger à gauche
+            } else {
+                keys['ArrowRight'] = true; // Clic à droite = bouger à droite
+            }
+            fireBullet(); // Tir à chaque clic
+            e.preventDefault();
+        });
+        canvas.addEventListener('touchend', e => {
+            keys['ArrowLeft'] = false;
+            keys['ArrowRight'] = false;
+        });
+
+        // Recommencer
+        restartBtn.addEventListener('click', () => {
+            init();
+            gameLoop();
+        });
+
+        // --- Lancement ---
+        init();
+        gameLoop();
+
+    </script>
+</body>
+</html>
