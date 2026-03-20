@@ -37,9 +37,13 @@ async function saveScore(username, score) {
     </style>
 </head>
 <body>
-
     <div class="header">
-        <h1>EAGLE ARCADE 🦅</h1>
+        <div id="leaderboard-card" style="background: rgba(0, 0, 0, 0.8); border: 1px solid #00ffcc; border-radius: 8px; padding: 15px; max-width: 300px; margin: 20px auto; font-family: 'Courier New', monospace; box-shadow: 0 0 10px #00ffcc;">
+    <h3 style="color: #00ffcc; text-align: center; margin-top: 0; text-transform: uppercase;">🏆 Top Pilots</h3>
+    <div id="leaderboard-list" style="color: #fff; font-size: 14px;">
+        Chargement des scores...
+    </div>
+</div>
         <div class="streak-box">
             <div class="streak-fire" id="streakIcon">🔥</div>
             <div id="streakText">Initialisation...</div>
@@ -128,6 +132,33 @@ async function saveScore(username, score) {
         }
 
         checkStreak();
+        async function refreshLeaderboard() {
+    try {
+        const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?select=username,score&order=score.desc&limit=5`, {
+            headers: {
+                'apikey': SUPABASE_KEY,
+                'Authorization': `Bearer ${SUPABASE_KEY}`
+            }
+        });
+        const data = await response.json();
+        const listElement = document.getElementById('leaderboard-list');
+        if (data.length === 0) {
+            listElement.innerHTML = "Aucun record encore !";
+            return;
+        }
+        listElement.innerHTML = data.map((entry, index) => `
+            <div style="display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dotted #333;">
+                <span>${index + 1}. ${entry.username}</span>
+                <span style="color: #00ffcc; font-weight: bold;">${entry.score}</span>
+            </div>
+        `).join('');
+    } catch (e) {
+        console.error("Erreur leaderboard:", e);
+    }
+}
+
+// On lance le chargement au démarrage
+refreshLeaderboard();
     </script>
 </body>
 </html>
