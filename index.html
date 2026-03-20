@@ -5,6 +5,23 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Eagle Arcade 🦅</title>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <script>
+const SUPABASE_URL = "https://rjkyjqmydriagpiatbsr.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqa3lqcW15ZHJpYWdwaWF0YnNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMzQ5MTEsImV4cCI6MjA4OTYxMDkxMX0.4-uEBo_SFqfMgPpTuDQRxTYLeUoI_ZMZlwtkBJzK_X0";
+
+async function saveScore(username, score) {
+    await fetch(`${SUPABASE_URL}/rest/v1/leaderboard`, {
+        method: 'POST',
+        headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': `Bearer ${SUPABASE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ username: username, score: score })
+    });
+}
+    </script>
     <style>
         body { background: #0b0b0b; color: white; font-family: 'Arial', sans-serif; text-align: center; margin: 0; padding: 20px; }
         .header { margin: 40px 0; }
@@ -104,6 +121,7 @@
 
                 const { signature } = await window.solana.signAndSendTransaction(transaction);
                 alert("Streak Sauvé ! 🔥");
+                saveScore('jimmortel', parseInt(localStorage.getItem('eagle-streak') || 0));
                 localStorage.setItem('eagleStreak', (parseInt(localStorage.getItem('eagleStreak')) || 0) + 1);
                 location.reload();
             } catch (err) { alert("Erreur ou transaction annulée."); }
