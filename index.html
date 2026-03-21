@@ -132,8 +132,10 @@ async function saveScore(username, score) {
         }
 
         checkStreak();
-        async function loadLeaderboard() {
+        async function refreshLeaderboard() {
             const listElement = document.getElementById('leaderboard-list');
+            if (!listElement) return;
+
             try {
                 const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?select=*&order=score.desc&limit=10`, {
                     headers: {
@@ -154,12 +156,16 @@ async function saveScore(username, score) {
                         </div>
                     `).join('');
                 } else {
-                    listElement.innerHTML = "<div style='text-align:center;color:gray;'>Aucun score pour le moment</div>";
+                    listElement.innerHTML = "<div style='text-align:center; color:gray; padding:20px;'>Aucun score enregistré</div>";
                 }
-            } catch (error) {
-                console.error('Erreur:', error);
-                listElement.innerHTML = "<div style='text-align:center;color:red;'>Erreur de connexion</div>";
+            } catch (e) {
+                console.error("Erreur Arcade:", e);
+                listElement.innerHTML = "<div style='text-align:center; color:red; padding:20px;'>Erreur de connexion aux scores</div>";
             }
+        }
+
+        // Lancement immédiat
+        refreshLeaderboard();
         }
 
         // Lancement automatique
