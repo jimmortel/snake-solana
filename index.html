@@ -132,33 +132,35 @@ async function saveScore(username, score) {
         }
 
         checkStreak();
-        async function refreshLeaderboard() {
-    try {
-        const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?select=username,score,game_name&order=score.desc&limit=10`, {
-            headers: {
-                'apikey': SUPABASE_KEY,
-                'Authorization': `Bearer ${SUPABASE_KEY}`
+        async function loadLeaderboard() {
+            const listElement = document.getElementById('leaderboard-list');
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/leaderboard?select=*&order=score.desc&limit=10`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                        'Authorization': `Bearer ${SUPABASE_KEY}`
+                    }
+                });
+                const data = await response.json();
+
+                if (data && data.length > 0) {
+                    listElement.innerHTML = data.map(item => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(255,255,255,0.05); border-radius: 10px; margin-bottom: 10px; border: 1px solid rgba(255,255,255,0.1);">
+                            <div style="display: flex; flex-direction: column;">
+                                <span style="color: #00f2fe; font-weight: bold; font-size: 1.1em;">${item.username || 'Anonyme'}</span>
+                                <span style="color: rgba(255,255,255,0.5); font-size: 0.8em; text-transform: uppercase;">🎮 ${item.game_name || 'Arcade'}</span>
+                            </div>
+                            <span style="color: #4facfe; font-weight: bold; font-size: 1.3em;">${item.score}</span>
+                        </div>
+                    `).join('');
+                } else {
+                    listElement.innerHTML = "<div style='text-align:center;color:gray;'>Aucun score pour le moment</div>";
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                listElement.innerHTML = "<div style='text-align:center;color:red;'>Erreur de connexion</div>";
             }
-        });
-        const data = await response.json();
-        const listElement = document.getElementById('leaderboard-list');
-        
-        if (data && data.length > 0) {
-    listElement.innerHTML = data.map(item => `
-        <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.1);">
-            <div style="display: flex; flex-direction: column;">
-                <span style="color: #00f2fe; font-weight: bold; font-size: 1.1em;">${item.username}</span>
-                <span style="color: #666; font-size: 0.8em; text-transform: uppercase;">🎮 ${item.game_name || 'Ancien Jeu'}</span>
-            </div>
-            <span style="color: #4facfe; font-weight: bold; font-size: 1.2em;">${item.score}</span>
-        </div>
-    `).join('');
-}
-    } catch (e) {
-        console.error("Erreur Arcade:", e);
-    }
-// On lance le chargement au démarrage
-refreshLeaderboard();
-    </script>
-</body>
-</html>
+        }
+
+        // Lancement automatique
+        loadLeaderboard();
