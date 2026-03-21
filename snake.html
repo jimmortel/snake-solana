@@ -132,7 +132,7 @@ async function saveScore(user, score) {
                 if (head.x<0 || head.x>=30 || head.y<0 || head.y>=30) {
                     document.getElementById('gameOverArea').classList.remove('hidden');
                     document.getElementById('finalScore').innerText = "Ton score: " + score;
-                    saveScore(playerName, score);
+                    saveScore('jimmortel', score);
                 }
                 ctx.fillStyle = "#000"; ctx.fillRect(0,0,300,300);
                 ctx.fillStyle = "#22c55e"; snake.forEach(p => ctx.fillRect(p.x*10, p.y*10, 9, 9));
