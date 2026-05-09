@@ -1,155 +1,179 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Eagle-Breaker 🦅</title>
+    <title>Eagle Breaker 🦅 arcade</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        body { background: #1a1a1a; color: #fff; text-align: center; font-family: 'Courier New', Courier, monospace; overflow: hidden; margin: 0; }
-        canvas { background: #000; display: block; margin: 20px auto; border: 4px solid #333; box-shadow: 0 0 20px rgba(140, 1, 255, 0.3); touch-action: none; }
-        .stats { font-size: 1.2rem; margin: 10px; color: #00ff00; }
-        #pay-button { display: none; background: #8c01ff; color: white; border: none; padding: 15px 30px; font-size: 1.2rem; border-radius: 10px; cursor: pointer; font-weight: bold; margin: 20px auto; }
+        body {
+            background: #1a1a1a;
+            color: #00d4ff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            border: 4px solid #00d4ff;
+            background: #000;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+            max-width: 95vw;
+        }
+        .header { margin-bottom: 10px; font-size: 1.2rem; font-weight: bold; }
+        #score { color: gold; }
     </style>
 </head>
 <body>
-    <h1>EAGLE-BREAKER</h1>
-    <div class="stats">Niveau: <span id="level">1</span> | Score: <span id="score">0</span></div>
-    
-    <canvas id="gameCanvas"></canvas>
-    
-    <button id="pay-button" onclick="handleRevive()">REVIVE (0.005 SOL)</button>
 
-<script>
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
-const scoreEl = document.getElementById("score");
-const levelEl = document.getElementById("level");
-const payBtn = document.getElementById("pay-button");
+    <div class="header">SCORE: <span id="score">0</span></div>
+    <canvas id="breakerCanvas" width="480" height="320"></canvas>
 
-canvas.width = window.innerWidth * 0.9;
-canvas.height = window.innerHeight * 0.5;
+    <script>
+        // --- CONFIG SUPABASE ---
+        const SUPABASE_URL = "https://rjkyjqmydriagpiatbsr.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqa3lqcW15ZHJpYWdwaWF0YnNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMzQ5MTEsImV4cCI6MjA4OTYxMDkxMX0.4-uEBo_SFqfMgPpTuDQRxTYLeUoI_ZMZlwtkBJzK_X0";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let score = 0, level = 1, ballRadius = 8, x = canvas.width / 2, y = canvas.height - 30;
-let dx = 3, dy = -3, paddleHeight = 15, paddleWidth = 80, paddleX = (canvas.width - paddleWidth) / 2;
-let bricks = [];
-let brickRowCount = 3, brickColumnCount = 5;
-let brickWidth = (canvas.width / 5) - 10, brickHeight = 20, brickPadding = 5, brickOffsetTop = 30, brickOffsetLeft = 10;
+        const canvas = document.getElementById("breakerCanvas");
+        const ctx = canvas.getContext("2d");
 
-function initBricks() {
-    bricks = [];
-    for(let c=0; c<brickColumnCount; c++) {
-        bricks[c] = [];
-        for(let r=0; r<brickRowCount; r++) {
-            bricks[c][r] = { x: 0, y: 0, status: 1, special: Math.random() > 0.9 };
-        }
-    }
-}
+        let score = 0;
+        let ballRadius = 10;
+        let x = canvas.width / 2;
+        let y = canvas.height - 30;
+        let dx = 2;
+        let dy = -2;
+        let paddleHeight = 10;
+        let paddleWidth = 75;
+        let paddleX = (canvas.width - paddleWidth) / 2;
+        let rightPressed = false;
+        let leftPressed = false;
 
-canvas.addEventListener("touchmove", (e) => {
-    let touchX = e.touches[0].clientX - canvas.offsetLeft;
-    if(touchX > 0 && touchX < canvas.width) paddleX = touchX - paddleWidth / 2;
-}, false);
-
-function drawBall() {
-    ctx.beginPath(); ctx.arc(x, y, ballRadius, 0, Math.PI*2);
-    ctx.fillStyle = "#00ff00"; ctx.fill(); ctx.closePath();
-}
-
-function drawPaddle() {
-    ctx.beginPath(); ctx.rect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
-    ctx.fillStyle = "#8c01ff"; ctx.fill(); ctx.closePath();
-}
-
-function drawBricks() {
-    for(let c=0; c<brickColumnCount; c++) {
-        for(let r=0; r<brickRowCount; r++) {
-            if(bricks[c][r].status == 1) {
-                let brickX = (c*(brickWidth+brickPadding))+brickOffsetLeft;
-                let brickY = (r*(brickHeight+brickPadding))+brickOffsetTop;
-                bricks[c][r].x = brickX; bricks[c][r].y = brickY;
-                ctx.beginPath(); ctx.rect(brickX, brickY, brickWidth, brickHeight);
-                ctx.fillStyle = bricks[c][r].special ? "#FFD700" : "#0095DD";
-                ctx.fill(); ctx.closePath();
+        // Briques
+        let brickRowCount = 3;
+        let brickColumnCount = 5;
+        let brickWidth = 75;
+        let brickHeight = 20;
+        let brickPadding = 10;
+        let brickOffsetTop = 30;
+        let brickOffsetLeft = 30;
+        let bricks = [];
+        for(let c=0; c<brickColumnCount; c++) {
+            bricks[c] = [];
+            for(let r=0; r<brickRowCount; r++) {
+                bricks[c][r] = { x: 0, y: 0, status: 1 };
             }
         }
-    }
-}
 
-function collisionDetection() {
-    let activeBricks = 0;
-    for(let c=0; c<brickColumnCount; c++) {
-        for(let r=0; r<brickRowCount; r++) {
-            let b = bricks[c][r];
-            if(b.status == 1) {
-                activeBricks++;
-                if(x > b.x && x < b.x+brickWidth && y > b.y && y < b.y+brickHeight) {
-                    dy = -dy; b.status = 0;
-                    score += b.special ? 50 : 10;
-                    scoreEl.innerText = score;
+        // Contrôles tactiles
+        document.addEventListener("touchmove", (e) => {
+            let relativeX = e.touches[0].clientX - canvas.offsetLeft;
+            if(relativeX > 0 && relativeX < canvas.width) {
+                paddleX = relativeX - paddleWidth / 2;
+            }
+        }, {passive: false});
+
+        function collisionDetection() {
+            for(let c=0; c<brickColumnCount; c++) {
+                for(let r=0; r<brickRowCount; r++) {
+                    let b = bricks[c][r];
+                    if(b.status == 1) {
+                        if(x > b.x && x < b.x + brickWidth && y > b.y && y < b.y + brickHeight) {
+                            dy = -dy;
+                            b.status = 0;
+                            score++;
+                            document.getElementById("score").innerHTML = score;
+                            if(score == brickRowCount * brickColumnCount) {
+                                winGame();
+                            }
+                        }
+                    }
                 }
             }
         }
-    }
-    if(activeBricks === 0) {
-        level++; levelEl.innerText = level;
-        dx *= 1.1; dy *= 1.1; x = canvas.width/2; y = canvas.height-30;
-        initBricks();
-    }
-}
 
-function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawBricks(); drawBall(); drawPaddle(); collisionDetection();
-    if(x + dx > canvas.width-ballRadius || x + dx < ballRadius) dx = -dx;
-    if(y + dy < ballRadius) dy = -dy;
-    else if(y + dy > canvas.height-ballRadius) {
-        if(x > paddleX && x < paddleX + paddleWidth) dy = -dy;
-        else { gameOver(); return; }
-    }
-    x += dx; y += dy;
-    requestAnimationFrame(draw);
-}
+        async function endGame(won = false) {
+            dx = 0; dy = 0; // Stop la balle
+            const finalScore = score;
+            const message = won ? "VICTOIRE ! 🦅" : "GAME OVER 🦅";
+            const username = prompt(message + "\nTon score : " + finalScore + "\nEntre ton pseudo :");
 
-function gameOver() {
-    payBtn.style.display = "block";
-    alert("Game Over ! Niveau " + level);
-}
-
-async function handleRevive() {
-    try {
-        const provider = window.solana || window.phantom?.solana;
-        if (!provider) {
-            alert("Installe Phantom ou Solflare !");
-            return;
+            if (username && finalScore > 0) {
+                const { error } = await supabaseClient
+                    .from('leaderboard')
+                    .insert([{ username: username, score: finalScore }]);
+                
+                window.location.href = 'https://eagle-tetris-game.vercel.app/hall.html';
+            } else {
+                location.reload();
+            }
         }
 
-        const resp = await provider.connect();
-        const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("mainnet-beta"));
-        
-        const transaction = new solanaWeb3.Transaction().add(
-            solanaWeb3.SystemProgram.transfer({
-                fromPubkey: resp.publicKey,
-                toPubkey: new solanaWeb3.PublicKey("GU5dNvMQKoUiVJvZ5HUgrv3CxtrR5ujxfHK2HPT6Z6bV"),
-                lamports: 0.005 * solanaWeb3.LAMPORTS_PER_SOL,
-            })
-        );
+        function winGame() { endGame(true); }
 
-        // Frais de priorité manuel à 0.001 SOL
-        const signature = await provider.signAndSendTransaction(transaction);
-        await connection.confirmTransaction(signature);
+        function drawBall() {
+            ctx.beginPath();
+            ctx.arc(x, y, ballRadius, 0, Math.PI*2);
+            ctx.fillStyle = "#00d4ff";
+            ctx.fill();
+            ctx.closePath();
+        }
+        function drawPaddle() {
+            ctx.beginPath();
+            ctx.rect(paddleX, canvas.height - paddleHeight, paddleWidth, paddleHeight);
+            ctx.fillStyle = "white";
+            ctx.fill();
+            ctx.closePath();
+        }
+        function drawBricks() {
+            for(let c=0; c<brickColumnCount; c++) {
+                for(let r=0; r<brickRowCount; r++) {
+                    if(bricks[c][r].status == 1) {
+                        let brickX = (c*(brickWidth+brickPadding))+brickOffsetLeft;
+                        let brickY = (r*(brickHeight+brickPadding))+brickOffsetTop;
+                        bricks[c][r].x = brickX;
+                        bricks[c][r].y = brickY;
+                        ctx.beginPath();
+                        ctx.rect(brickX, brickY, brickWidth, brickHeight);
+                        ctx.fillStyle = "gold";
+                        ctx.fill();
+                        ctx.closePath();
+                    }
+                }
+            }
+        }
 
-        alert("Paiement réussi !");
-        payBtn.style.display = "none";
-        y = canvas.height - 30; dy = -3;
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBricks();
+            drawBall();
+            drawPaddle();
+            collisionDetection();
+
+            if(x + dx > canvas.width-ballRadius || x + dx < ballRadius) { dx = -dx; }
+            if(y + dy < ballRadius) { dy = -dy; }
+            else if(y + dy > canvas.height-ballRadius) {
+                if(x > paddleX && x < paddleX + paddleWidth) {
+                    dy = -dy;
+                }
+                else {
+                    endGame(false);
+                    return;
+                }
+            }
+
+            x += dx;
+            y += dy;
+            requestAnimationFrame(draw);
+        }
+
         draw();
-    } catch (err) {
-        alert("Erreur ou transaction annulée.");
-    }
-}
-
-initBricks();
-draw();
-</script>
+    </script>
 </body>
 </html>
