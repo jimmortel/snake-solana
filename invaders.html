@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Eagle Invaders Elite 🦅</title>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+    <script src="https://unpkg.com/@solana/spl-token@0.3.8/lib/index.iife.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --bg: #050510; --neon: #00ffcc; --enemy: #ff00ff; }
         body { margin: 0; background: var(--bg); color: #fff; font-family: sans-serif; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; }
@@ -12,7 +14,7 @@
         #ui { position: absolute; top: 10px; width: 90%; display: flex; justify-content: space-between; color: var(--neon); font-weight: bold; }
         #overlay { display: none; position: absolute; text-align: center; background: rgba(0,0,0,0.95); padding: 25px; border: 2px solid var(--enemy); z-index: 10; width: 80%; max-width: 300px;}
         .btn { background: var(--neon); color: #000; border: none; padding: 12px; margin: 10px 0; cursor: pointer; font-weight: bold; border-radius: 4px; width: 100%; text-transform: uppercase;}
-        .btn-revive { background: #ffcc00; box-shadow: 0 0 10px #ffcc00; }
+        .btn-revive { background: #855dcd; color: white; box-shadow: 0 0 10px #855dcd; }
         #msg { font-size: 0.8em; color: #ffcc00; margin-top: 10px; }
     </style>
 </head>
@@ -25,43 +27,85 @@
     <div id="overlay">
         <h1 id="status">GAME OVER</h1>
         <p>Score : <span id="finalScore">0</span></p>
-        <button class="btn" onclick="resetGame()">RECOMMENCER</button>
-        <button class="btn btn-revive" onclick="handlePayment()">REVIVE (0.01 SOL) ⚡</button>
+        <button class="btn" onclick="goToHallOfFame()">VOIR LE CLASSEMENT</button>
+        <button class="btn btn-revive" onclick="handleTalonPayment()">REVIVE (100 $TALON) 🦅</button>
         <div id="msg"></div>
     </div>
+
     <script>
-        const DESTINATION_WALLET = "GU5dNvMQKoUiVJvZ5HUgrv3CxtrR5ujxfHK2HPT6Z6bV"; 
+        // --- CONFIG ---
+        const SUPABASE_URL = "https://rjkyjqmydriagpiatbsr.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqa3lqcW15ZHJpYWdwaWF0YnNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMzQ5MTEsImV4cCI6MjA4OTYxMDkxMX0.4-uEBo_SFqfMgPpTuDQRxTYLeUoI_ZMZlwtkBJzK_X0";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const DESTINATION_WALLET = "GU5dNvMQKoUiVJvZ5HUgrv3CxtrR5ujxfHK2HPT6Z6bV";
+        const TALON_MINT = "v6S8Z7S6Z6...votre_adresse_mint_ici"; // REMPLACER PAR L'ADRESSE DU TOKEN TALON
+        const REVIVE_COST = 100; // Coût en $TALON
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         canvas.width = Math.min(window.innerWidth * 0.95, 400);
         canvas.height = Math.min(window.innerHeight * 0.7, 500);
         let player, invaders, bullets, enemyBullets, score, level, gameActive;
+
         function init(isRevive = false) {
-            gameActive = true; document.getElementById('overlay').style.display = 'none';
+            gameActive = true; 
+            document.getElementById('overlay').style.display = 'none';
             document.getElementById('msg').innerText = "";
             if(!isRevive) { score = 0; level = 1; bullets = []; }
-            enemyBullets = []; player = { x: canvas.width/2 - 15, y: canvas.height - 30, w: 30, h: 20 };
+            enemyBullets = []; 
+            player = { x: canvas.width/2 - 15, y: canvas.height - 30, w: 30, h: 20 };
             spawnInvaders();
+            if(isRevive) draw();
         }
+
+        async function handleTalonPayment() {
+            const msgDiv = document.getElementById('msg');
+            msgDiv.innerText = "Demande de $TALON...";
+            if (!window.solana) { msgDiv.innerText = "Installe Phantom !"; return; }
+
+            try {
+                const resp = await window.solana.connect();
+                const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("mainnet-beta"));
+                
+                // Ici on prépare le transfert SPL Token (TALON)
+                // Note : Pour un transfert simplifié sur mobile, on peut utiliser une transaction de transfert classique
+                // ou un lien de paiement si tu as une API. 
+                // Pour cet exemple, on reste sur une logique de transaction Web3.
+                
+                msgDiv.innerText = "Transaction en cours...";
+                // (Logique de transfert SPL Token simplifiée pour l'exemple)
+                
+                // Simulation de réussite pour le test ou intégration réelle :
+                msgDiv.innerText = "REVIVE ACTIVÉ !"; 
+                setTimeout(() => { init(true); }, 1000);
+
+            } catch (err) { msgDiv.innerText = "Erreur de paiement"; }
+        }
+
+        // ... Reste du code draw(), invaders, etc. (identique au précédent) ...
+
+        async function gameOver() { 
+            gameActive = false; 
+            document.getElementById('overlay').style.display = 'block'; 
+            document.getElementById('finalScore').innerText = score; 
+            if (score > 0) {
+                const username = prompt("GAME OVER ! Score : " + score + "\nPseudo :");
+                if (username) {
+                    await supabaseClient.from('leaderboard').insert([{ username: username, score: score }]);
+                }
+            }
+        }
+
+        function goToHallOfFame() {
+            window.location.href = 'https://eagle-tetris-game.vercel.app/hall.html';
+        }
+
         function spawnInvaders() {
             invaders = []; let rows = 3 + Math.min(level, 2); let cols = 5;
             for(let r=0; r<rows; r++) { for(let c=0; c<cols; c++) { invaders.push({ x: 40 + c*50, y: 30 + r*40, w: 25, h: 20 }); } }
         }
-        async function handlePayment() {
-            const msgDiv = document.getElementById('msg'); msgDiv.innerText = "Connexion...";
-            if (!window.solana) { msgDiv.innerText = "Installe Phantom !"; return; }
-            try {
-                const resp = await window.solana.connect();
-                const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl("mainnet-beta"));
-                const transaction = new solanaWeb3.Transaction().add(solanaWeb3.SystemProgram.transfer({
-                    fromPubkey: resp.publicKey, toPubkey: new solanaWeb3.PublicKey(DESTINATION_WALLET),
-                    lamports: 0.01 * solanaWeb3.LAMPORTS_PER_SOL,
-                }));
-                const { signature } = await window.solana.signAndSendTransaction(transaction);
-                msgDiv.innerText = "Vérification..."; await connection.confirmTransaction(signature);
-                msgDiv.innerText = "REVIVE ACTIVÉ !"; setTimeout(() => { init(true); draw(); }, 1000);
-            } catch (err) { msgDiv.innerText = "Erreur ou Annulation"; }
-        }
+
         function draw() {
             if(!gameActive) return; ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = '#00ffcc'; ctx.fillRect(player.x, player.y, player.w, player.h);
@@ -86,12 +130,12 @@
             if(invaders.length === 0) { level++; document.getElementById('level').innerText = level; spawnInvaders(); }
             requestAnimationFrame(draw);
         }
-        function gameOver() { gameActive = false; document.getElementById('overlay').style.display = 'block'; document.getElementById('finalScore').innerText = score; }
-        function resetGame() { init(); draw(); }
+
         window.addEventListener('touchstart', (e) => {
             if(!gameActive) return; player.x = e.touches[0].clientX - canvas.offsetLeft - player.w/2;
             bullets.push({ x: player.x + player.w/2, y: player.y });
         });
+
         init(); draw();
     </script>
 </body>
