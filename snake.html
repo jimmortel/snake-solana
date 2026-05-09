@@ -4,60 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Eagle Snake 🦅🐍</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/index.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="access.js"></script>
+    
     <style>
-        body {
-            background: #1a1a1a;
-            color: #4ade80;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            overflow: hidden;
-            touch-action: none;
-        }
-        canvas {
-            border: 4px solid #4ade80;
-            box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
-            background-color: #000;
-        }
-        .header {
-            position: absolute;
-            top: 20px;
-            text-align: center;
-            width: 100%;
-        }
-        .score-board {
-            font-size: 1.5rem;
-            margin-bottom: 10px;
-        }
-        .controls {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-top: 20px;
-        }
-        .btn {
-            background: rgba(74, 222, 128, 0.1);
-            border: 2px solid #4ade80;
-            color: #4ade80;
-            padding: 20px;
-            border-radius: 10px;
-            text-align: center;
-            font-weight: bold;
-            user-select: none;
-        }
+        body { background: #1a1a1a; color: #4ade80; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; touch-action: none; }
+        canvas { border: 4px solid #4ade80; box-shadow: 0 0 20px rgba(74, 222, 128, 0.3); background-color: #000; }
+        .header { position: absolute; top: 20px; text-align: center; width: 100%; }
+        .score-board { font-size: 1.5rem; margin-bottom: 10px; }
+        .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 20px; }
+        .btn { background: rgba(74, 222, 128, 0.1); border: 2px solid #4ade80; color: #4ade80; padding: 20px; border-radius: 10px; text-align: center; font-weight: bold; user-select: none; }
         .btn:active { background: #4ade80; color: #000; }
-        #up { grid-column: 2; }
-        #left { grid-column: 1; }
-        #down { grid-column: 2; }
-        #right { grid-column: 3; }
+        #up { grid-column: 2; } #left { grid-column: 1; } #down { grid-column: 2; } #right { grid-column: 3; }
+        #overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 50; display: flex; align-items: center; justify-content: center; }
+        #start-btn { background: #4ade80; color: black; font-weight: 900; padding: 20px 40px; border-radius: 15px; border: none; cursor: pointer; text-transform: uppercase; }
     </style>
 </head>
 <body>
+
+    <div id="overlay">
+        <button id="start-btn" onclick="handleEagleStart()">Lancer Snake (10 $TALON) 🦅</button>
+    </div>
 
     <div class="header">
         <div class="score-board">SCORE: <span id="current-score">0</span></div>
@@ -71,122 +39,3 @@
         <div id="down" class="btn">↓</div>
         <div id="right" class="btn">→</div>
     </div>
-
-    <script>
-        // --- CONFIG SUPABASE ---
-        const SUPABASE_URL = "https://rjkyjqmydriagpiatbsr.supabase.co";
-        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqa3lqcW15ZHJpYWdwaWF0YnNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMzQ5MTEsImV4cCI6MjA4OTYxMDkxMX0.4-uEBo_SFqfMgPpTuDQRxTYLeUoI_ZMZlwtkBJzK_X0";
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-        const canvas = document.getElementById("snakeGame");
-        const ctx = canvas.getContext("2d");
-        const scoreEl = document.getElementById("current-score");
-
-        const box = 20;
-        let score = 0;
-        let gameRunning = true;
-
-        let snake = [{ x: 9 * box, y: 10 * box }];
-        let food = {
-            x: Math.floor(Math.random() * 15) * box,
-            y: Math.floor(Math.random() * 15) * box
-        };
-
-        let d;
-
-        // Contrôles tactiles
-        document.getElementById("up").onclick = () => { if(d != "DOWN") d = "UP"; };
-        document.getElementById("down").onclick = () => { if(d != "UP") d = "DOWN"; };
-        document.getElementById("left").onclick = () => { if(d != "RIGHT") d = "LEFT"; };
-        document.getElementById("right").onclick = () => { if(d != "LEFT") d = "RIGHT"; };
-
-        // Contrôles clavier
-        document.addEventListener("keydown", direction);
-        function direction(event) {
-            if(event.keyCode == 37 && d != "RIGHT") d = "LEFT";
-            else if(event.keyCode == 38 && d != "DOWN") d = "UP";
-            else if(event.keyCode == 39 && d != "LEFT") d = "RIGHT";
-            else if(event.keyCode == 40 && d != "UP") d = "DOWN";
-        }
-
-        function collision(head, array) {
-            for(let i = 0; i < array.length; i++) {
-                if(head.x == array[i].x && head.y == array[i].y) return true;
-            }
-            return false;
-        }
-
-        async function gameOver() {
-            gameRunning = false;
-            clearInterval(game);
-            
-            const finalScore = score;
-            const username = prompt("GAME OVER ! Score : " + finalScore + "\nEntre ton pseudo :");
-            
-            if (username && finalScore > 0) {
-                const { error } = await supabaseClient
-                    .from('leaderboard')
-                    .insert([{ username: username, score: finalScore }]);
-
-                if (error) {
-                    alert("Erreur lors de l'enregistrement");
-                    location.reload();
-                } else {
-                    alert("Record envoyé !");
-                    window.location.href = 'https://eagle-tetris-game.vercel.app/hall.html';
-                }
-            } else {
-                location.reload();
-            }
-        }
-
-        function draw() {
-            if(!gameRunning) return;
-
-            ctx.fillStyle = "black";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            for(let i = 0; i < snake.length; i++) {
-                ctx.fillStyle = (i == 0) ? "#4ade80" : "#166534";
-                ctx.fillRect(snake[i].x, snake[i].y, box, box);
-                ctx.strokeStyle = "black";
-                ctx.strokeRect(snake[i].x, snake[i].y, box, box);
-            }
-
-            ctx.fillStyle = "red";
-            ctx.fillRect(food.x, food.y, box, box);
-
-            let snakeX = snake[0].x;
-            let snakeY = snake[0].y;
-
-            if( d == "LEFT") snakeX -= box;
-            if( d == "UP") snakeY -= box;
-            if( d == "RIGHT") snakeX += box;
-            if( d == "DOWN") snakeY += box;
-
-            if(snakeX == food.x && snakeY == food.y) {
-                score++;
-                scoreEl.innerHTML = score;
-                food = {
-                    x: Math.floor(Math.random() * 14 + 1) * box,
-                    y: Math.floor(Math.random() * 14 + 1) * box
-                };
-            } else {
-                snake.pop();
-            }
-
-            let newHead = { x: snakeX, y: snakeY };
-
-            // Sortie de mur ou auto-collision
-            if(snakeX < 0 || snakeX >= canvas.width || snakeY < 0 || snakeY >= canvas.height || collision(newHead, snake)) {
-                gameOver();
-                return;
-            }
-
-            snake.unshift(newHead);
-        }
-
-        let game = setInterval(draw, 150);
-    </script>
-</body>
-</html>
