@@ -3,142 +3,190 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Snake Solana - Nostalgie</title>
-    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Eagle Snake 🦅🐍</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        canvas { border: 4px solid #3b82f6; background: #000; touch-action: none; }
-        body { background: #0f172a; color: white; overflow: hidden; }
+        body {
+            background: #1a1a1a;
+            color: #4ade80;
+            font-family: 'Courier New', Courier, monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            touch-action: none;
+        }
+        canvas {
+            border: 4px solid #4ade80;
+            box-shadow: 0 0 20px rgba(74, 222, 128, 0.3);
+            background-color: #000;
+        }
+        .header {
+            position: absolute;
+            top: 20px;
+            text-align: center;
+            width: 100%;
+        }
+        .score-board {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+        }
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .btn {
+            background: rgba(74, 222, 128, 0.1);
+            border: 2px solid #4ade80;
+            color: #4ade80;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+            user-select: none;
+        }
+        .btn:active { background: #4ade80; color: #000; }
+        #up { grid-column: 2; }
+        #left { grid-column: 1; }
+        #down { grid-column: 2; }
+        #right { grid-column: 3; }
     </style>
 </head>
-<body class="flex flex-col items-center p-4">
-    <h1 class="text-2xl font-black text-blue-400 mb-2">SNAKE SOLANA</h1>
-    
-    <div id="status" class="text-xs mb-4 text-blue-300 font-mono text-center">Connecte ton wallet pour jouer</div>
-    <button id="connectBtn" class="bg-blue-600 px-6 py-2 rounded-full font-bold mb-4 shadow-lg shadow-blue-900">Connecter Phantom</button>
+<body>
 
-    <canvas id="gameCanvas" width="300" height="300" class="rounded-lg"></canvas>
+    <div class="header">
+        <div class="score-board">SCORE: <span id="current-score">0</span></div>
+    </div>
 
-    <div id="scoreDisplay" class="mt-4 text-xl font-bold">Score: 0</div>
+    <canvas id="snakeGame" width="300" height="300"></canvas>
 
-    <div id="gameOverArea" class="hidden fixed inset-0 bg-black/80 flex flex-col items-center justify-center p-6 text-center">
-        <h2 class="text-4xl font-black text-red-500 mb-2">GAME OVER</h2>
-        <p id="finalScore" class="text-xl mb-6 font-bold"></p>
-        
-        <button id="reviveBtn" class="bg-green-500 w-full py-4 rounded-xl font-black text-lg mb-4 shadow-lg shadow-green-900">
-            CONTINUER (0.005 SOL)
-        </button>
-        
-        <button id="shareBtn" class="bg-purple-600 w-full py-3 rounded-xl font-bold mb-4">
-            PARTAGER SUR FARCASTER
-        </button>
-
-        <button onclick="location.reload()" class="text-gray-400 underline">Recommencer à zéro</button>
+    <div class="controls">
+        <div id="up" class="btn">↑</div>
+        <div id="left" class="btn">←</div>
+        <div id="down" class="btn">↓</div>
+        <div id="right" class="btn">→</div>
     </div>
 
     <script>
-        const DEST_WALLET = "GU5dNvMQKoUiVJvZ5HUgrv3CxtrR5ujxfHK2HPT6Z6bV";
-        const REVIVE_COST = 0.005;
-        const PRIORITY_FEE = 0.001; // Tes réglages personnels
+        // --- CONFIG SUPABASE ---
+        const SUPABASE_URL = "https://rjkyjqmydriagpiatbsr.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqa3lqcW15ZHJpYWdwaWF0YnNyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMzQ5MTEsImV4cCI6MjA4OTYxMDkxMX0.4-uEBo_SFqfMgPpTuDQRxTYLeUoI_ZMZlwtkBJzK_X0";
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let walletAddress = null;
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        let snake = [{x: 10, y: 10}];
-        let food = {x: 15, y: 15};
-        let dx = 0, dy = 0, score = 0, gameInterval;
+        const canvas = document.getElementById("snakeGame");
+        const ctx = canvas.getContext("2d");
+        const scoreEl = document.getElementById("current-score");
 
-        // Connexion Wallet
-        document.getElementById('connectBtn').onclick = async () => {
-            if (window.solana) {
-                try {
-                    const resp = await window.solana.connect();
-                    walletAddress = resp.publicKey.toString();
-                    document.getElementById('status').innerText = "Wallet: " + walletAddress.slice(0,6) + "...";
-                    document.getElementById('connectBtn').classList.add('hidden');
-                    startGame();
-                } catch (e) { alert("Erreur de connexion"); }
-            } else { alert("Utilise le navigateur de Phantom !"); }
+        const box = 20;
+        let score = 0;
+        let gameRunning = true;
+
+        let snake = [{ x: 9 * box, y: 10 * box }];
+        let food = {
+            x: Math.floor(Math.random() * 15) * box,
+            y: Math.floor(Math.random() * 15) * box
         };
 
-        // Paiement Revive
-        document.getElementById('reviveBtn').onclick = async () => {
-            const connection = new solanaWeb3.Connection("https://api.mainnet-beta.solana.com");
-            const transaction = new solanaWeb3.Transaction().add(
-                solanaWeb3.SystemProgram.transfer({
-                    fromPubkey: window.solana.publicKey,
-                    toPubkey: new solanaWeb3.PublicKey(DEST_WALLET),
-                    lamports: (REVIVE_COST + PRIORITY_FEE) * solanaWeb3.LAMPORTS_PER_SOL,
-                })
-            );
-            try {
-                const { signature } = await window.solana.signAndSendTransaction(transaction);
-                document.getElementById('status').innerText = "Vérification...";
-                await connection.confirmTransaction(signature);
-                document.getElementById('gameOverArea').classList.add('hidden');
-                dx = 0; dy = 0; // On reprend
-            } catch (err) { alert("Transaction annulée"); }
-        };
+        let d;
 
-        // Partage Farcaster
-        document.getElementById('shareBtn').onclick = () => {
-            const text = encodeURIComponent(`Je viens de faire ${score} au Snake Solana ! 🐍 Qui peut me battre ?`);
-            window.open(`https://warpcast.com/~/compose?text=${text}`);
-        };
+        // Contrôles tactiles
+        document.getElementById("up").onclick = () => { if(d != "DOWN") d = "UP"; };
+        document.getElementById("down").onclick = () => { if(d != "UP") d = "DOWN"; };
+        document.getElementById("left").onclick = () => { if(d != "RIGHT") d = "LEFT"; };
+        document.getElementById("right").onclick = () => { if(d != "LEFT") d = "RIGHT"; };
 
-        // Commandes tactiles (Swipe)
-        let touchStartX = 0, touchStartY = 0;
-        canvas.addEventListener('touchstart', e => { touchStartX = e.touches[0].clientX; touchStartY = e.touches[0].clientY; });
-        canvas.addEventListener('touchend', e => {
-            const diffX = e.changedTouches[0].clientX - touchStartX;
-            const diffY = e.changedTouches[0].clientY - touchStartY;
-            if (Math.abs(diffX) > Math.abs(diffY)) {
-                if (diffX > 0 && dx === 0) { dx = 1; dy = 0; } else if (dx === 0) { dx = -1; dy = 0; }
-            } else {
-                if (diffY > 0 && dy === 0) { dx = 0; dy = 1; } else if (dy === 0) { dx = 0; dy = -1; }
-            }
-        });
-async function saveScore(user, score) {
-    try {
-        await fetch(`${SUPABASE_URL}/rest/v1/leaderboard`, {
-            method: 'POST',
-            headers: {
-                'apikey': SUPABASE_KEY,
-                'Authorization': `Bearer ${SUPABASE_KEY}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=minimal'
-            },
-            body: JSON.stringify({ 
-                username: user, 
-                score: score, 
-                game_name: 'Snake' 
-            })
-        });
-        console.log("Score Snake enregistré !");
-    } catch (e) {
-        console.error("Erreur score:", e);
-    }
-                }
-        function startGame() {
-            gameInterval = setInterval(() => {
-                const head = {x: snake[0].x + dx, y: snake[0].y + dy};
-                if (dx === 0 && dy === 0) return;
-                snake.unshift(head);
-                if (head.x === food.x && head.y === food.y) {
-                    score += 10;
-                    document.getElementById('scoreDisplay').innerText = "Score: " + score;
-                    food = {x: Math.floor(Math.random()*30), y: Math.floor(Math.random()*30)};
-                } else { snake.pop(); }
-                if (head.x<0 || head.x>=30 || head.y<0 || head.y>=30) {
-                    document.getElementById('gameOverArea').classList.remove('hidden');
-                    document.getElementById('finalScore').innerText = "Ton score: " + score;
-                    saveScore('jimmortel', score);
-                }
-                ctx.fillStyle = "#000"; ctx.fillRect(0,0,300,300);
-                ctx.fillStyle = "#22c55e"; snake.forEach(p => ctx.fillRect(p.x*10, p.y*10, 9, 9));
-                ctx.fillStyle = "#ef4444"; ctx.fillRect(food.x*10, food.y*10, 9, 9);
-            }, 150);
+        // Contrôles clavier
+        document.addEventListener("keydown", direction);
+        function direction(event) {
+            if(event.keyCode == 37 && d != "RIGHT") d = "LEFT";
+            else if(event.keyCode == 38 && d != "DOWN") d = "UP";
+            else if(event.keyCode == 39 && d != "LEFT") d = "RIGHT";
+            else if(event.keyCode == 40 && d != "UP") d = "DOWN";
         }
+
+        function collision(head, array) {
+            for(let i = 0; i < array.length; i++) {
+                if(head.x == array[i].x && head.y == array[i].y) return true;
+            }
+            return false;
+        }
+
+        async function gameOver() {
+            gameRunning = false;
+            clearInterval(game);
+            
+            const finalScore = score;
+            const username = prompt("GAME OVER ! Score : " + finalScore + "\nEntre ton pseudo :");
+            
+            if (username && finalScore > 0) {
+                const { error } = await supabaseClient
+                    .from('leaderboard')
+                    .insert([{ username: username, score: finalScore }]);
+
+                if (error) {
+                    alert("Erreur lors de l'enregistrement");
+                    location.reload();
+                } else {
+                    alert("Record envoyé !");
+                    window.location.href = 'https://eagle-tetris-game.vercel.app/hall.html';
+                }
+            } else {
+                location.reload();
+            }
+        }
+
+        function draw() {
+            if(!gameRunning) return;
+
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            for(let i = 0; i < snake.length; i++) {
+                ctx.fillStyle = (i == 0) ? "#4ade80" : "#166534";
+                ctx.fillRect(snake[i].x, snake[i].y, box, box);
+                ctx.strokeStyle = "black";
+                ctx.strokeRect(snake[i].x, snake[i].y, box, box);
+            }
+
+            ctx.fillStyle = "red";
+            ctx.fillRect(food.x, food.y, box, box);
+
+            let snakeX = snake[0].x;
+            let snakeY = snake[0].y;
+
+            if( d == "LEFT") snakeX -= box;
+            if( d == "UP") snakeY -= box;
+            if( d == "RIGHT") snakeX += box;
+            if( d == "DOWN") snakeY += box;
+
+            if(snakeX == food.x && snakeY == food.y) {
+                score++;
+                scoreEl.innerHTML = score;
+                food = {
+                    x: Math.floor(Math.random() * 14 + 1) * box,
+                    y: Math.floor(Math.random() * 14 + 1) * box
+                };
+            } else {
+                snake.pop();
+            }
+
+            let newHead = { x: snakeX, y: snakeY };
+
+            // Sortie de mur ou auto-collision
+            if(snakeX < 0 || snakeX >= canvas.width || snakeY < 0 || snakeY >= canvas.height || collision(newHead, snake)) {
+                gameOver();
+                return;
+            }
+
+            snake.unshift(newHead);
+        }
+
+        let game = setInterval(draw, 150);
     </script>
 </body>
 </html>
